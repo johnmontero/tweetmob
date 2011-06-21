@@ -3,9 +3,11 @@
 import sys
 import os
 import uuid
-import urllib2
-import oauth2 as oauth
-from oauthtwitter       import OAuthApi
+import tweepy
+#import urllib2
+#import oauth2 as oauth
+#from oauthtwitter       import OAuthApi
+from tweepy.error import TweepError
 from guachi             import ConfigMapper
 from tweetmob.argopts   import ArgOpts
 
@@ -18,6 +20,14 @@ FILE_CWD = os.path.abspath(__file__)
 FILE_DIR = os.path.dirname(FILE_CWD)
 DB_FILE = FILE_DIR+'/tweetmob.db'
 
+# MESSAGE
+
+MSG_REJECTED = '''DM #{0} was received from {1} at {2} but was rejected due to
+ user not being authorized to send tweets'''
+
+MSG_CREATED = '''DM #{0} was received from @{1} at {2} and created tweet 
+https://twitter.com/#!/{2}/status/{3}'''
+
 class TweetmobCommands(object):
 
     tweetmob_help = """
@@ -29,14 +39,15 @@ Run:
     tweetmob [options]  
 
 Options:
-    --version, version      Shows the current installed version
-    --config-values         Displays the current configuration values used
-    --get-name-account      Displays the current name of the account
-    --get-credentials       Get the credentials of authenticate
-    --add-account           Add account receive direct message
-    --del-account           Delete account direct message
-    --tweet-direct-message  Tweet the direct message from accounts
-   
+    --version, version      Shows the current installed version.
+    --log-file              The log file to write to. [-]
+    --log-level             The granularity of log outputs. [info]
+    --config-values         Displays the current configuration values used.
+    --get-name-account      Displays the current name of the account.
+    --get-credentials       Get the credentials of authenticate.
+    --add-account           Add account receive direct message.
+    --del-account           Delete account direct message.
+    --tweet-direct-message  Tweet the direct message from accounts.
     """ % __version__
 
     ENCODING = 'utf8'
@@ -46,6 +57,9 @@ Options:
         
         self.db = db
         self.test = test
+
+        self.auth = tweepy.OAuthHandler(__consumer_key__,
+                                        __consumer_secret__)
 
         if argv is None:
             argv = sys.argv
@@ -155,24 +169,19 @@ Options:
 
 
     def get_credentials(self):
-
-        twitter = OAuthApi(__consumer_key__, __consumer_secret__)
-
-        # Get the temporary credentials for our next few calls
-        temp_credentials = twitter.getRequestToken()
-
-        # User pastes this into their browser to bring back a pin number
+        
+        # User pastes this into their browser to bring back a pin number        
         print("Please, copy & paste this URL to your web browser:\n")
-        print(twitter.getAuthorizationURL(temp_credentials))
+        print(self.auth.get_authorization_url())
         print("\nYou'll have to authorize the 'tweetmob' app and then copy and paste the given PIN here.\n")
 
         # Get the pin # from the user and get our permanent credentials
         oauth_verifier = raw_input('What is the PIN? ')
-        access_token = twitter.getAccessToken(temp_credentials, oauth_verifier)
+        auth.get_access_token(oauth_verifier)
         self.set_item_config('consumer_key', __consumer_key__)
         self.set_item_config('consumer_secret', __consumer_secret__)
-        self.set_item_config('token', access_token['oauth_token'])
-        self.set_item_config('token_secret', access_token['oauth_token_secret'])
+        self.set_item_config('token',  self.auth.access_token.key)
+        self.set_item_config('token_secret', self.auth.access_token.secret)
         self.msg('Credentials added.')
 
 
@@ -185,6 +194,23 @@ Options:
         except Exception, error:
             self.msg("Could not complete command: %s" % error, stdout=False) 
 
+    def get_me(self):
+        conf = self.db.stored_config()
+        try:
+            token = conf['token']
+        except KeyError:
+            token = None
+
+        try:
+            token_secret = conf['token_secret']
+        except KeyError:
+            token_secret = None
+
+        if token and token_secret:
+            self.auth.set_access_token(token,token_secret)
+            api = tweepy.API(self.auth)
+            me = api.me()
+            print dir(me)
 
     def tweet_direct_message(self):
         conf = self.db.stored_config()
@@ -200,31 +226,36 @@ Options:
 
         if token and token_secret:
 
-            api = OAuthApi(
-                __consumer_key__, 
-                __consumer_secret__, 
-                token, 
-                token_secret)
+            self.auth.set_access_token(token,token_secret)
+            api = tweepy.API(self.auth)
 
             count_tweets = 0
             try:
-                replies = api.GetDirectMessages()
+                replies = api.direct_messages()
                 for i in range(len(replies),0,-1):
                     r = replies[i-1]
                     for k in [i for i in conf.keys() if 'dm.' in i]:
                         if conf[k] == r.sender_screen_name:
-                            status = api.UpdateStatus(r.text)
-                            direct_message = api.DestroyDirectMessage(r.id)
+                            print r.text                            
+                            status = api.update_status(r.text)
+                            
+                            #direct_message = api.DestroyDirectMessage(r.id)
                             count_tweets += 1
+                        else:
+                            print MSG_REJECTED
+                            #self.msg('msg')
+
                 self.msg('Tweets direct messages: %s' % count_tweets)
-            except urllib2.HTTPError, e:
-                self.processHTTPError(e)
+            except TweepError:
+                pass
 
         else:
             self.msg('Not exist credentiales. Please use options\n tweetmob --get-credentials',stdout=False)
 
     def parseArgs(self, argv):
-        options = ['--config-values',
+        options = ['--log-file',
+                   '--log-level',
+                   '--config-values',                   
                    '--get-name-account',
                    '--get-credentials',
                    '--add-account',
@@ -243,13 +274,29 @@ Options:
             
         if args.match:
 
+            # Matches for --log-file
+            if args.has('--log-file'):
+                log_file = args.get_value('--log-file')
+                if log_file is None:
+                    self.del_item_config('log_file')
+                else:
+                    self.set_item_config('log_file', log_file)
+
+            # Matches for --log-level
+            if args.has('--log-level'):
+                log_level = args.get_value('--log-level')
+                if log_level is None:
+                    self.del_item_config('log_level')
+                else:
+                    self.set_item_config('log_level', log_level)
+
             # Matches for --config-value
             if args.has('--config-values'):
                 self.config_values()
             
             # Matches for --get-name-account
             if args.has('--get-name-account'):
-                pass
+                self.get_me()
 
             # Matches for --get-credentials
             if args.has('--get-credentials'):
