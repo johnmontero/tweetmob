@@ -4,7 +4,7 @@ from distutils.core import setup
 setup(
     name             = "tweetmob",
     version          = tweetmob.__version__,
-    packages         = ['tweetmob'],
+    packages         = ['tweetmob','tweetmob/commands'],
     scripts          = ['bin/tweetmob'],
     author           = "John Montero",
     author_email     = "jmonteroc [at] gmail.com",
