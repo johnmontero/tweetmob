@@ -1,15 +1,33 @@
+import logging
 import tweepy
 from tweepy.error       import TweepError
-from tweetmob.log       import log
+#from tweetmob.log       import log
 from tweetmob.config    import db, get_config_value
 from tweetmob.commands  import BaseCommand, CommandError
 
-# log message 
-RECEIVED_MESSAGE = '''DM #%s was received from @%s 
- at %s and created tweet https://twitter.com/#!/%s/status/%s'''
 
-REJECTED_MESSAGE = '''DM #%s was received from @%s at %s but was rejected due to
- user not being authorized to send tweets'''
+LOG_FILE = get_config_value('log_file')
+
+if LOG_FILE is None:
+    logging.basicConfig(
+        format='%(asctime)-15s - %(levelname)-8s : %(message)s',
+        level=logging.INFO
+    )
+else:
+    logging.basicConfig(
+        format='%(asctime)-15s - %(levelname)-8s : %(message)s',
+        filename=LOG_FILE,
+        level=logging.INFO
+    )
+     
+log = logging.getLogger('TweetMob')
+
+# log message 
+RECEIVED_MESSAGE = 'DM #%s was received from @%s\
+ at %s and created tweet https://twitter.com/#!/%s/status/%s'
+
+REJECTED_MESSAGE = 'DM #%s was received from @%s at %s but was rejected due to\
+ user not being authorized to send tweets'
 
 
 class Command(BaseCommand):
@@ -52,16 +70,18 @@ class Command(BaseCommand):
                                                       r.created_at,
                                                       status.author.screen_name,
                                                       status.id )
-                            log(message)
+                            log.info(message)
                         else:
+                            print dir(r)
+                            print r.id,r.sender_screen_name,r.created_at  
                             message = RECEIVED_MESSAGE % ( r.id,
                                                            r.sender_screen_name,
-                                                           r.created_at)
-                            log(message)
+                                                          str(r.created_at) )
+                            log.info(message)
                 
-                log('Tweets direct messages: %s' % count_tweets)
+                log.info('Tweets direct messages: %s' % count_tweets)
             except TweepError, e:
-                log('Error: %s' % e)
+                log.error(e)
 
         else:
             print('Not exist credentiales. Please use options\n tweetmob %s' %
