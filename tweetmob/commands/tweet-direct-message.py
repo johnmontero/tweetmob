@@ -54,7 +54,7 @@ class Command(BaseCommand):
 
             count_tweets = 0
             try:
-                replies = api.direct_messages()
+                replies = api.direct_messages()                
                 for i in range(len(replies),0,-1):
                     r = replies[i-1]
                      
@@ -72,15 +72,18 @@ class Command(BaseCommand):
                                                     ( r.sender_screen_name,
                                                  r.id )] = ('Published: %s' %
                                                             time.asctime())
-                                status = api.update_status(r.text)      
+                                try:
+                                    status = api.update_status(r.text)      
                             
-                                count_tweets += 1 
-                                message = RECEIVED_MESSAGE % ( r.id,
+                                    count_tweets += 1 
+                                    message = RECEIVED_MESSAGE % ( r.id,
                                                       r.sender_screen_name,
                                                       r.created_at,
                                                       status.author.screen_name,
                                                       status.id )
-                                log.info(message)
+                                    log.info(message)
+                                except TweepError, e:
+                                    log.error(e)
                         else:
                             message = REJECTED_MESSAGE % ( r.id,
                                                            r.sender_screen_name,
