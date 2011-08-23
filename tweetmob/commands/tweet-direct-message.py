@@ -1,10 +1,9 @@
 import logging
-import tweepy
+import time
+import tweepy 
 from tweepy.error       import TweepError
-#from tweetmob.log       import log
 from tweetmob.config    import db, get_config_value
 from tweetmob.commands  import BaseCommand, CommandError
-
 
 LOG_FILE = get_config_value('log_file')
 
@@ -58,28 +57,37 @@ class Command(BaseCommand):
                 replies = api.direct_messages()
                 for i in range(len(replies),0,-1):
                     r = replies[i-1]
+                     
                     for k in [i for i in conf.keys() if 'dm.' in i]:
                         if conf[k] == r.sender_screen_name:
-                            print r.text                            
-                            direct_message = api.destroy_direct_message(r.id)
-                            status = api.update_status(r.text)      
+                            try:
+                                value = conf['tweet.received.%s.%s' %\
+                                                    ( r.sender_screen_name,
+                                                      r.id )]
+                            except KeyError:
+                                value = None
+                           
+                            if value is None:
+                                conf['tweet.received.%s.%s' %\
+                                                    ( r.sender_screen_name,
+                                                      r.id )] = time.asctime()
+                                status = api.update_status(r.text)      
                             
-                            count_tweets += 1 
-                            message = RECEIVED_MESSAGE % ( r.id,
+                                count_tweets += 1 
+                                message = RECEIVED_MESSAGE % ( r.id,
                                                       r.sender_screen_name,
                                                       r.created_at,
                                                       status.author.screen_name,
                                                       status.id )
-                            log.info(message)
+                                log.info(message)
                         else:
-                            print dir(r)
-                            print r.id,r.sender_screen_name,r.created_at  
-                            message = RECEIVED_MESSAGE % ( r.id,
+                            message = REJECTED_MESSAGE % ( r.id,
                                                            r.sender_screen_name,
-                                                          str(r.created_at) )
+                                                           r.created_at )
                             log.info(message)
-                
-                log.info('Tweets direct messages: %s' % count_tweets)
+                if count_tweets > 0:
+                    log.info('Tweets direct messages: %s' % count_tweets)
+
             except TweepError, e:
                 log.error(e)
 
