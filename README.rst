@@ -17,6 +17,7 @@ TweetMob: Communicate privately via Twitter
         --account-add           Add account receive direct message.    
         --account-del           Delete account direct message
         --account-info          Display information of me o account
+        --account-list          Displays the current accounts registered
         --config-export         Export the current configuration values used
         --config-import         Import the configuration values new
         --config-values         Displays the current configuration values used
