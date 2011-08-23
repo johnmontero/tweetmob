@@ -61,16 +61,17 @@ class Command(BaseCommand):
                     for k in [i for i in conf.keys() if 'dm.' in i]:
                         if conf[k] == r.sender_screen_name:
                             try:
-                                value = conf['tweet.received.%s.%s' %\
+                                value = conf['tweet.%s.%s' %\
                                                     ( r.sender_screen_name,
                                                       r.id )]
                             except KeyError:
                                 value = None
                            
                             if value is None:
-                                conf['tweet.received.%s.%s' %\
+                                conf['tweet.%s.%s' %\
                                                     ( r.sender_screen_name,
-                                                      r.id )] = time.asctime()
+                                                 r.id )] = ('Published: %s' %
+                                                            time.asctime())
                                 status = api.update_status(r.text)      
                             
                                 count_tweets += 1 
