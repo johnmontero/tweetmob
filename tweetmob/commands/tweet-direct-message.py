@@ -1,8 +1,10 @@
+import pdb
 import logging
 import time
 import tweepy 
 from tweepy.error       import TweepError
 from tweetmob.config    import db, get_config_value
+from tweetmob.config    import db_published, get_published_value
 from tweetmob.commands  import BaseCommand, CommandError
 
 LOG_FILE = get_config_value('log_file')
@@ -54,24 +56,25 @@ class Command(BaseCommand):
 
             count_tweets = 0
             try:
-                replies = api.direct_messages()                
+                replies = api.direct_messages()
+                #pdb.set_trace()
+                
+                tweet_published = db_published.stored_config()
+                
                 for i in range(len(replies),0,-1):
                     r = replies[i-1]
-                     
-                    for k in [i for i in conf.keys() if 'dm.' in i]:
+                    try:
+                        value = tweet_published['tweet.%s.%s' %\
+                                         (r.sender_screen_name, r.id)]
+                    except KeyError:
+                        value = None
+                            
+                    for k in [i for i in conf.keys() if 'dm.' in i]:    
                         if conf[k] == r.sender_screen_name:
-                            try:
-                                value = conf['tweet.%s.%s' %\
-                                                    ( r.sender_screen_name,
-                                                      r.id )]
-                            except KeyError:
-                                value = None
-                           
                             if value is None:
-                                conf['tweet.%s.%s' %\
-                                                    ( r.sender_screen_name,
-                                                 r.id )] = ('Published: %s' %
-                                                            time.asctime())
+                                tweet_published['tweet.%s.%s' %\
+                                         (r.id, r.sender_screen_name)] =\
+                                     'Published: %s' % time.asctime()
                                 try:
                                     status = api.update_status(r.text)      
                             
@@ -84,11 +87,12 @@ class Command(BaseCommand):
                                     log.info(message)
                                 except TweepError, e:
                                     log.error(e)
-                        else:
-                            message = REJECTED_MESSAGE % ( r.id,
+                        else:    
+                            if value is None:
+                                message = REJECTED_MESSAGE % ( r.id,
                                                            r.sender_screen_name,
                                                            r.created_at )
-                            log.info(message)
+                                log.info(message)
                 if count_tweets > 0:
                     log.info('Tweets direct messages: %s' % count_tweets)
 
